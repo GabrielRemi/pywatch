@@ -1,5 +1,6 @@
 import json
-from timeit import timeit
+
+from typing import Self
 
 # Type of data stored from a hit
 HitData = dict[str, int | float]
@@ -28,6 +29,13 @@ class EventDataCollection:
             for _ in range(detector_count):
                 self._dct[key].append([])
 
+        self._len = 0
+        self._index = 0  # Index needed for the Iterator
+
+    @property
+    def len(self) -> int:
+        return self._len
+
     def add_event(self, data: EventData) -> None:
         for key in self._keys:
             for index, hit in enumerate(data):
@@ -35,6 +43,8 @@ class EventDataCollection:
                     self._dct[key][index].append(hit[key])
                 else:
                     self._dct[key][index].append(None)
+
+        self._len += 1
 
     def get_event(self, index: int) -> EventData:
         event_data: EventData = []
@@ -49,9 +59,29 @@ class EventDataCollection:
 
         return event_data
 
-    def save_to_json(self, filename: str) -> None:
-        with open(filename, "w") as file:
-            json.dump(self._dct, file)
+    def clear(self) -> None:
+        """Clear all the data from memory."""
+        for key in self._keys:
+            for index in range(self._detector_count):
+                self._dct[key][index].clear()
+        self._len = 0
 
+    def to_json(self, file_path: str) -> None:
+        with open(file_path, "w", encoding="utf-8") as file:
+            json.dump(self._dct, file, indent=2)
 
-data = EventDataCollection(4)
+    def __len__(self) -> int:
+        return self._len
+
+    def __getitem__(self, index: int) -> EventData:
+        return self.get_event(index)
+
+    def __iter__(self) -> Self:
+        self._index = 0
+        return self
+
+    def __next__(self) -> EventData:
+        if self._index == self._len:
+            raise StopIteration
+        self._index += 1
+        return self[self._index - 1]

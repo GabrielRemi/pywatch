@@ -3,8 +3,9 @@ from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
 from typing import Any, Callable, Optional, Self
 
-from .async_detector import Detector
+from .detector import Detector
 from .event_data_collection import EventDataCollection
+
 
 # Type of data stored from a hit
 HitData = dict[str, int | float]
@@ -22,15 +23,17 @@ class DetectorPool:
     def __init__(self, *ports: str, threshold: int = 15) -> None:
         self.threshold = threshold
         self._detectors = [Detector(port, False) for port in ports]
-        self._events: list = []
+        # self._events: list = []
         self._index = -1
 
-        self._event_data: list[None | dict[str, Any]] = [None] * len(self._detectors)
+        self._event_data: EventData = [None] * len(self._detectors)
+        self._data = EventDataCollection(len(ports))
         self._first_coincidence_hit_time = 0
 
     async def open(self) -> Self:
         self._index = -1
-        self._events.clear()
+        # self._events.clear()
+        self._data.clear()
         self._event_data = [None] * len(self._detectors)
         self._first_coincidence_hit_time = 0
         await asyncio.gather(*[port.open() for port in self._detectors])
@@ -59,13 +62,17 @@ class DetectorPool:
     def event(self) -> int:
         return self._index + 1
 
+    @property
+    def data(self) -> EventDataCollection:
+        return self._data
+
     def _get_number_of_detector_hits(self) -> int:
         """Get the number of detectors that were hit during a coincidence event."""
-        sum = 0
+        sum_ = 0
         for _ in filter(lambda x: x is not None, self._event_data):
-            sum += 1
+            sum_ += 1
 
-        return sum
+        return sum_
 
     def run(
         self,
@@ -101,7 +108,8 @@ class DetectorPool:
             c1, c2 = Pipe()
 
             def callback_executor(connection: Connection) -> None:
-                """Function that is meant to execute the callback function after every hit in a different parallel process
+                """Function that is meant to execute the callback function after every hit in a different parallel
+                process
                 to not block reading from ports."""
 
                 for _ in range(hits):
@@ -127,7 +135,8 @@ class DetectorPool:
                         finished = True
                         break
                     if self._get_number_of_detector_hits() > 1:
-                        self._events.append(self._event_data)
+                        # self._events.append(self._event_data)
+                        self._data.add_event(self._event_data)
                         # print("HIT")
                         if callback is not None:
                             c2.send(self._event_data)  # type: ignore
@@ -152,22 +161,7 @@ class DetectorPool:
             callback_process.join()  # type: ignore
 
     def __len__(self) -> int:
-        return len(self._events)
-
-    def __getitem__(self, index: int) -> dict[str, Any]:
-        return self._events[index - 1]
-
-    def __iter__(self) -> Self:
-        self._index = 0
-        return self
-
-    def __next__(self) -> list[dict[str, Any]] | None:
-        if self._index == len(self._events):
-            raise StopIteration
-        res = self._events[self._index]
-        self._index += 1
-
-        return res
+        return len(self._data)
 
     async def __aenter__(self):
         if self.is_open:

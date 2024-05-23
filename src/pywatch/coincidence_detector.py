@@ -4,7 +4,7 @@ from typing import Self
 
 import serial  # type: ignore
 
-from .async_detector import Detector  # type: ignore
+from .detector import Detector  # type: ignore
 
 
 class CoincidenceDetector:
