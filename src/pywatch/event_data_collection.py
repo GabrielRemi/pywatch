@@ -2,6 +2,7 @@ import json
 
 from typing import Self
 
+
 # Type of data stored from a hit
 HitData = dict[str, int | float]
 
@@ -35,6 +36,10 @@ class EventDataCollection:
     @property
     def len(self) -> int:
         return self._len
+
+    @property
+    def detector_count(self):
+        return self._detector_count
 
     def add_event(self, data: EventData) -> None:
         for key in self._keys:
@@ -70,6 +75,11 @@ class EventDataCollection:
         with open(file_path, "w", encoding="utf-8") as file:
             json.dump(self._dct, file, indent=2)
 
+    # def load_from_json(self, file_path: str) -> None:
+    #     with open(file_path, "r", encoding="utf-8") as file:
+    #         dct = json.load(file)
+    #     self._dct = dct
+
     def __len__(self) -> int:
         return self._len
 
@@ -85,3 +95,17 @@ class EventDataCollection:
             raise StopIteration
         self._index += 1
         return self[self._index - 1]
+
+
+def load_event_data_collection_from_json(file_path: str) -> EventDataCollection:
+    """Loads the EventData made in a measurement into the EventDataCollection """
+    with open(file_path, "r", encoding="utf-8") as file:
+        dct = json.load(file)
+
+    detector_count = len(dct["comp_time"])
+    data = EventDataCollection(detector_count)
+
+    data._dct = dct  # type: ignore
+    data._len = dct["comp_time"][0].__len__()
+
+    return data
