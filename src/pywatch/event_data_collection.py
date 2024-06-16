@@ -1,26 +1,31 @@
 import json
 
+from dataclasses import dataclass
 from typing import Self
+
+from .hit_data import HitData
 
 
 # Type of data stored from a hit
-HitData = dict[str, int | float]
+# HitData = dict[str, int | float]
+
 
 # Type of data stored with an event
-EventData = list[HitData | None]
+# EventData = list[HitData | None]
+EventData = dict[int, HitData]
 
 
 class EventDataCollection:
     """Class for storing data efficiently registered in detector events"""
 
-    _keys: list[str] = [
-        "comp_time",
-        "ard_time",
-        "amplitude",
-        "sipm_voltage",
-        "dead_time",
-        "temp",
-    ]
+    # _keys: list[str] = [
+    #     "comp_time",
+    #     "ard_time",
+    #     "amplitude",
+    #     "sipm_voltage",
+    #     "dead_time",
+    #     "temp",
+    # ]
 
     def __init__(self, detector_count: int):
         self._dct: dict = dict()
@@ -97,6 +102,8 @@ class EventDataCollection:
         return self[self._index - 1]
 
 
+# TODO REWORK
+
 def load_event_data_collection_from_json(file_path: str) -> EventDataCollection:
     """Loads the EventData made in a measurement into the EventDataCollection """
     with open(file_path, "r", encoding="utf-8") as file:
@@ -109,3 +116,7 @@ def load_event_data_collection_from_json(file_path: str) -> EventDataCollection:
     data._len = dct["comp_time"][0].__len__()
 
     return data
+
+
+def test():
+    pass

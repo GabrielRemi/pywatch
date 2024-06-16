@@ -6,6 +6,8 @@ from typing import Any, Self
 import serial  # type: ignore
 from serial_asyncio import open_serial_connection  # type: ignore
 
+from .hit_data import HitData, parse_hit_data
+
 
 class Detector:
     def __init__(self, port: str, save_data: bool = True) -> None:
@@ -13,11 +15,9 @@ class Detector:
         self._reader: StreamReader | None = None
         self._writer: StreamWriter | None = None
 
-        # output of the last readline() of the port split into a list
-        self._output: list[str] = []
-
         # list of all registered events by the detector
-        self._events: list[dict[str, int | float]] = []
+        # if save_data = false, _events should have length 1 with the data of the last hit
+        self._events: list[HitData] = []
         self._start_time: int = 0
         self._index = -1
         self._save_data = save_data
@@ -36,7 +36,6 @@ class Detector:
 
         # 0.9 is the delay time of the detector measurement (time in ms)
         self._start_time = int(time.time() * 1000) + 900
-        self._output.clear()
         self._events.clear()
         self._index = -1
 
@@ -52,7 +51,7 @@ class Detector:
         self._reader = None
         self._writer = None
 
-    def run(self, hits: int) -> list[dict[str, Any]]:
+    def run(self, hits: int) -> list[HitData]:
         """Run the detector until the specified number of hits was registered"""
         events: list = []
 
@@ -77,83 +76,46 @@ class Detector:
         """The time the detector was opened in milliseconds since the epoch."""
         return self._start_time
 
-    async def measurement(self) -> dict[str, Any]:
+    async def measurement(self) -> HitData:
         if self._reader is None:
             raise serial.PortNotOpenError
 
         line = await self._reader.readline()
         output = line.decode()
-        data = output.split()
+        # data = output.split()
 
-        dct = self._make_dict_out_of_measurement(data, time.time() * 1000)
+        # dct = self._make_dict_out_of_measurement(data, time.time() * 1000)
+        hit_data = parse_hit_data(output, self._start_time)
 
         if self._save_data:
-            self._events.append(dct)
+            # self._events.append(dct)
+            self._events.append(hit_data)
             self._index = len(self._events) - 1
         else:
             self._index = 0
-            self._events = [dct]
-        self._output = data
+            self._events = [hit_data]
 
-        return dct
+        return hit_data
 
-    def get_event(self, event_number: int) -> None:
-        """load the data of the specified event"""
-        if event_number < 1 or event_number > len(self._events):
-            raise IndexError("event_number cannot be greater than total event count.")
-
-        self._index = event_number - 1
-
-    def get_list(self, key: str) -> list[float | int]:
-        """Returns a list containing the data of all events specified by the key."""
-        result = []
-
-        for i in range(len(self)):
-            result.append(self[i + 1][key])
-
-        return result
-
-    @property
-    def output(self) -> str:
-        return " ".join(self._output)
-
-    @property
-    def event(self) -> int:
-        return self._index + 1
-
-    @property
-    def ard_time(self) -> int:
-        """Time of event measured by the Arduino in ms"""
-        return self._events[self._index]["ard_time"]  # type: ignore
-
-    @property
-    def comp_time(self) -> int:
-        """Time of event measured by the computer in ms"""
-        return self._events[self._index]["comp_time"]  # type: ignore
+    # def get_list(self, key: str) -> list[float | int]:
+    #     """Returns a list containing the data of all events specified by the key."""
+    #     result = []
+    #
+    #     for i in range(len(self)):
+    #         result.append(self[i + 1][key])
+    #
+    #     return result
 
     @property
     def rate(self) -> float:
         """Hit rate of the detector in # / s"""
-        return (self.ard_time - self._start_time) / 1000
-
-    def _make_dict_out_of_measurement(
-        self, output: list[str], time_
-    ) -> dict[str, int | float]:
-        """Take the output string and save all the data in a dictionary"""
-        return {
-            "ard_time"    : int(output[1]) + self._start_time + self._calibration(time_),
-            "amplitude"   : int(output[2]),
-            "sipm_voltage": float(output[3]),
-            "dead_time"   : int(output[4]),
-            "temp"        : float(output[5]),
-            "comp_time"   : int(time_),
-        }
+        return (self[0].comp_time - self._start_time) / 1000
 
     def __iter__(self) -> Self:
         self._index = 0
         return self
 
-    def __next__(self) -> dict[str, Any]:
+    def __next__(self) -> HitData:
         if self._index == len(self._events):
             raise StopIteration
 
@@ -171,7 +133,7 @@ class Detector:
     async def __aexit__(self, *args):
         await self.close()
 
-    def __getitem__(self, index: int) -> dict[str, int | float]:
+    def __getitem__(self, index: int) -> HitData:
         return self._events[index - 1]
 
     def __len__(self) -> int:
