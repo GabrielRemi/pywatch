@@ -1,18 +1,12 @@
 import asyncio
+from copy import deepcopy
 from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
 from typing import Any, Callable, Optional, Self
-from icecream import ic
 
 from .detector import Detector
-from .event_data_collection import EventDataCollection
+from .event_data_collection import EventDataCollection, EventData, HitData
 
-
-# Type of data stored from a hit
-HitData = dict[str, int | float]
-
-# Type of data stored with an event
-EventData = list[HitData | None]
 
 # Type of callback function of DetectorPool.run() function
 Callback = Callable[[EventData, Any], Any] | Callable[[EventData], Any]
@@ -28,23 +22,17 @@ class DetectorPool:
         self._index = -1
 
         #  TODO change the way data is registered
-        self._event_data: EventData = [None] * len(self._detectors)  # make this obsolete
-        self._event = {
-            "detector_indices": [],
-            "hit_data"        : [],
-        }  # make this the new way of storing data
+        self._event_data: EventData = dict()  # make this obsolete
 
         # stores all the events
-        self._data = EventDataCollection(len(ports))
+        self._data = EventDataCollection()
 
         self._first_coincidence_hit_time = 0
 
     async def open(self) -> Self:
         """Opens asynchronously all ports for data collection"""
         self._index = -1
-        # self._events.clear()
         self._data.clear()
-        self._event_data = [None] * len(self._detectors)
         self._first_coincidence_hit_time = 0
         await asyncio.gather(*[port.open() for port in self._detectors])
 
@@ -75,13 +63,10 @@ class DetectorPool:
     def data(self) -> EventDataCollection:
         return self._data
 
-    def _get_number_of_detector_hits(self) -> int:
+    @staticmethod
+    def _get_number_of_detector_hits(event: EventData) -> int:
         """Get the number of detectors that were hit during a coincidence event."""
-        sum_ = 0
-        for _ in filter(lambda x: x is not None, self._event_data):
-            sum_ += 1
-
-        return sum_
+        return len(event.keys())
 
     def run(self, hits: int, callback: Optional[Callback] = None, *args: Any, ) -> None:
         """Run the detectors, until the specified number of coincidence events are registered.
@@ -124,39 +109,33 @@ class DetectorPool:
             as first coincidence time."""
 
             nonlocal finished
+            counted_hits = 0
+
             while True:
                 try:
-                    dct = await dt.measurement()
+                    await dt.measurement()
                 except asyncio.CancelledError:
                     break
-                if dt.comp_time - self._first_coincidence_hit_time <= self.threshold:
-                    self._event_data[dt_index] = dct  # TODO delete this
-                    if dt_index in self._event["detector_indices"]:
+                if dt[-1].comp_time - self._first_coincidence_hit_time <= self.threshold:
+                    if dt_index in self._event_data.keys():
                         continue
-                    self._event["detector_indices"].append(dt_index)
-                    self._event["hit_data"].append(dct)
+                    self._event_data[dt_index] = dt[-1]
                 else:
-                    if len(self) == hits:
-                        finished = True
-                        break
                     # print(self._event)
-                    if len(self._event["detector_indices"]) > 1:
+                    if len(self._event_data.keys()) > 1:
                         # TODO save data in collection
                         if callback is not None:
-                            c2.send(self._event)
+                            c2.send(self._event_data)
+                        self._data.add_event(deepcopy(self._event_data))
+                        counted_hits += 1
 
-                    # TODO delete this
-                    if self._get_number_of_detector_hits() > 1:
-                        self._data.add_event(self._event_data)
-                        # if callback is not None:
-                        #     c2.send(self._event_data)  # type: ignore
-                    self._first_coincidence_hit_time = dt.comp_time
-                    self._event_data = [None] * len(self._detectors)
-                    self._event_data[dt_index] = dct
-                    self._event = {
-                        "detector_indices": [dt_index],
-                        "hit_data"        : [dct],
-                    }
+                    if counted_hits == hits:
+                        finished = True
+                        break
+
+                    self._first_coincidence_hit_time = dt[-1].comp_time
+                    self._event_data.clear()
+                    self._event_data[dt_index] = dt[-1]
 
         async def run_():
             tasks = [

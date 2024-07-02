@@ -134,7 +134,7 @@ class Detector:
         await self.close()
 
     def __getitem__(self, index: int) -> HitData:
-        return self._events[index - 1]
+        return self._events[index]
 
     def __len__(self) -> int:
         return len(self._events)
