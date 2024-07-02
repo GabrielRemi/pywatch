@@ -1,4 +1,5 @@
 import json
+from typing import Iterator
 
 from dataclasses import dataclass
 from typing import Self
@@ -18,88 +19,51 @@ EventData = dict[int, HitData]
 class EventDataCollection:
     """Class for storing data efficiently registered in detector events"""
 
-    # _keys: list[str] = [
-    #     "comp_time",
-    #     "ard_time",
-    #     "amplitude",
-    #     "sipm_voltage",
-    #     "dead_time",
-    #     "temp",
-    # ]
-
-    def __init__(self, detector_count: int):
-        self._dct: dict = dict()
-        self._detector_count = detector_count
-        for key in self._keys:
-            self._dct[key] = []
-            for _ in range(detector_count):
-                self._dct[key].append([])
+    def __init__(self):
+        # TODO make memory efficient
+        self._events: list[EventData] = []
 
         self._len = 0
-        self._index = 0  # Index needed for the Iterator
+        # self._index = 0  # Index needed for the Iterator
 
     @property
     def len(self) -> int:
         return self._len
 
-    @property
-    def detector_count(self):
-        return self._detector_count
-
     def add_event(self, data: EventData) -> None:
-        for key in self._keys:
-            for index, hit in enumerate(data):
-                if hit is not None:
-                    self._dct[key][index].append(hit[key])
-                else:
-                    self._dct[key][index].append(None)
+        # TODO make storing data more memory efficient
+
+        # Check if data has the right type
+        if not isinstance(data, dict):
+            raise TypeError("data added to EventDataCollection must be a dict")
+
+        type_key = set([type(key) for key in data.keys()])
+        type_value = set([type(value) for value in data.values()])
+
+        if type_key != {int} or type_value != {HitData}:
+            raise TypeError("data added to EventDataCollection must be a dict with "
+                            "integer keys and HitData as values.")
+
+        self._events.append(data)
 
         self._len += 1
 
-    def get_event(self, index: int) -> EventData:
-        event_data: EventData = []
-        for port in range(self._detector_count):
-            dct = dict()
-            for key in self._keys:
-                dct[key] = self._dct[key][port][index]
-            if dct["comp_time"] is None:
-                event_data.append(None)
-            else:
-                event_data.append(dct)
-
-        return event_data
-
     def clear(self) -> None:
         """Clear all the data from memory."""
-        for key in self._keys:
-            for index in range(self._detector_count):
-                self._dct[key][index].clear()
+        self._events.clear()
         self._len = 0
 
     def to_json(self, file_path: str) -> None:
-        with open(file_path, "w", encoding="utf-8") as file:
-            json.dump(self._dct, file, indent=2)
-
-    # def load_from_json(self, file_path: str) -> None:
-    #     with open(file_path, "r", encoding="utf-8") as file:
-    #         dct = json.load(file)
-    #     self._dct = dct
+        raise NotImplementedError
 
     def __len__(self) -> int:
         return self._len
 
     def __getitem__(self, index: int) -> EventData:
-        return self.get_event(index)
+        return self._events[index]
 
-    def __iter__(self) -> Self:
-        self._index = 0
-        return self
-
-    def __next__(self) -> EventData:
-        if self._index == self._len:
-            raise StopIteration
-        self._index += 1
-        return self[self._index - 1]
+    def __iter__(self) -> Iterator[EventData]:
+        return self._events.__iter__()
 
 
 # TODO REWORK
@@ -116,7 +80,3 @@ def load_event_data_collection_from_json(file_path: str) -> EventDataCollection:
     data._len = dct["comp_time"][0].__len__()
 
     return data
-
-
-def test():
-    pass
