@@ -79,12 +79,12 @@ class DetectorPool:
             if self.is_open:
                 await self.close()
             await self.open()
-            await self._async_run(hits, callback, *args)
+            await self.async_run(hits, callback, *args)
             await self.close()
 
         asyncio.run(run_())
 
-    async def _async_run(self, hits: int, callback: Optional[Callback] = None, *args: Any, ) -> None:
+    async def async_run(self, hits: int, callback: Optional[Callback] = None, *args: Any, ) -> None:
         """Same as self.run(), but as an asynchronous function."""
         finished = False
 
