@@ -13,7 +13,15 @@ from .hit_data import HitData
 
 # Type of data stored with an event
 # EventData = list[HitData | None]
-EventData = dict[int, HitData]
+# EventData = dict[int, HitData]
+
+class EventData(dict):
+    def to_dict(self) -> dict[int, dict[str, float | int]]:
+        new_dct = dict()
+        for key, value in self.items():
+            new_dct[key] = value.__dict__
+
+        return new_dct
 
 
 class EventDataCollection:

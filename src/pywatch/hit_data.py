@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 import time
-import sys
 
 
 @dataclass
@@ -28,5 +27,3 @@ def parse_hit_data(output: str, start_time_ms: int) -> HitData:
     temp = float(data[5])
 
     return HitData(comp_time, ard_time, amplitude, sipm_voltage, dead_time, temp)
-
-

@@ -5,7 +5,7 @@ from multiprocessing.connection import Connection
 from typing import Any, Callable, Optional, Self
 
 from .detector import Detector
-from .event_data_collection import EventDataCollection, EventData, HitData
+from .event_data_collection import EventDataCollection, EventData
 
 
 # Type of callback function of DetectorPool.run() function
@@ -22,7 +22,7 @@ class DetectorPool:
         self._index = -1
 
         #  TODO change the way data is registered
-        self._event_data: EventData = dict()  # make this obsolete
+        self._event_data: EventData = EventData()  # make this obsolete
 
         # stores all the events
         self._data = EventDataCollection()
