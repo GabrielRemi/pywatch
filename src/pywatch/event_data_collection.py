@@ -62,7 +62,8 @@ class EventDataCollection:
         self._len = 0
 
     def to_json(self, file_path: str) -> None:
-        raise NotImplementedError
+        with open(file_path, "w") as file:
+            json.dump([x.to_dict() for x in self._events], file, indent=4)
 
     def __len__(self) -> int:
         return self._len
@@ -74,17 +75,18 @@ class EventDataCollection:
         return self._events.__iter__()
 
 
-# TODO REWORK
-
+# TODO HANDLE EXCEPTIONS
 def load_event_data_collection_from_json(file_path: str) -> EventDataCollection:
     """Loads the EventData made in a measurement into the EventDataCollection """
     with open(file_path, "r", encoding="utf-8") as file:
-        dct = json.load(file)
+        raw = json.load(file)
 
-    detector_count = len(dct["comp_time"])
-    data = EventDataCollection(detector_count)
+    collection = EventDataCollection()
+    for data in raw:
+        event = EventData()
+        for key, value in data.items():
+            event[int(key)] = HitData(**value)
 
-    data._dct = dct  # type: ignore
-    data._len = dct["comp_time"][0].__len__()
+        collection.add_event(event)
 
-    return data
+    return collection
