@@ -1,8 +1,7 @@
 import asyncio
 import time
 from asyncio import StreamReader, StreamWriter
-from typing import Any, Self
-
+from typing import Optional, List
 import serial  # type: ignore
 from serial_asyncio import open_serial_connection  # type: ignore
 
@@ -12,19 +11,19 @@ from .hit_data import HitData, parse_hit_data
 class Detector:
     def __init__(self, port: str, save_data: bool = True) -> None:
         self.port = port
-        self._reader: StreamReader | None = None
-        self._writer: StreamWriter | None = None
+        self._reader: Optional[StreamReader] = None
+        self._writer: Optional[StreamWriter] = None
 
         # list of all registered events by the detector
         # if save_data = false, _events should have length 1 with the data of the last hit
-        self._events: list[HitData] = []
+        self._events: List[HitData] = []
         self._start_time: int = 0
         self._index = -1
         self._save_data = save_data
 
         self._calibration = lambda x: 0
 
-    async def open(self) -> Self:
+    async def open(self) -> "Detector":
         if self._reader is not None:
             raise Exception("port already open")
         reader, writer = await open_serial_connection(url=self.port, baudrate=9600)
@@ -51,7 +50,7 @@ class Detector:
         self._reader = None
         self._writer = None
 
-    def run(self, hits: int) -> list[HitData]:
+    def run(self, hits: int) -> List[HitData]:
         """Run the detector until the specified number of hits was registered"""
         events: list = []
 
@@ -97,21 +96,12 @@ class Detector:
 
         return hit_data
 
-    # def get_list(self, key: str) -> list[float | int]:
-    #     """Returns a list containing the data of all events specified by the key."""
-    #     result = []
-    #
-    #     for i in range(len(self)):
-    #         result.append(self[i + 1][key])
-    #
-    #     return result
-
     @property
     def rate(self) -> float:
         """Hit rate of the detector in # / s"""
         return (self[0].comp_time - self._start_time) / 1000
 
-    def __iter__(self) -> Self:
+    def __iter__(self) -> "Detector":
         self._index = 0
         return self
 

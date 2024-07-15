@@ -2,14 +2,14 @@ import asyncio
 from copy import deepcopy
 from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
-from typing import Any, Callable, Optional, Self
+from typing import Any, Callable, Optional, Union, List
 
 from .detector import Detector
 from .event_data_collection import EventDataCollection, EventData
 
 
 # Type of callback function of DetectorPool.run() function
-Callback = Callable[[EventData, Any], Any] | Callable[[EventData], Any]
+Callback = Union[Callable[[EventData, Any], Any], Callable[[EventData], Any]]
 
 
 class DetectorPool:
@@ -29,7 +29,7 @@ class DetectorPool:
 
         self._first_coincidence_hit_time = 0
 
-    async def open(self) -> Self:
+    async def open(self) -> "DetectorPool":
         """Opens asynchronously all ports for data collection"""
         self._index = -1
         self._data.clear()
@@ -50,7 +50,7 @@ class DetectorPool:
         return len(self._detectors)
 
     @property
-    def get_ports(self) -> list[str]:
+    def get_ports(self) -> List[str]:
         """Get a list of ports from the used detectors. The index at which a port
         is returned corresponds to the index in the event list."""
         return [dt.port for dt in self._detectors]

@@ -1,22 +1,11 @@
 import json
-from typing import Iterator
-
-from dataclasses import dataclass
-from typing import Self
+from typing import Iterator, Union, Dict, List
 
 from .hit_data import HitData
 
 
-# Type of data stored from a hit
-# HitData = dict[str, int | float]
-
-
-# Type of data stored with an event
-# EventData = list[HitData | None]
-# EventData = dict[int, HitData]
-
 class EventData(dict):
-    def to_dict(self) -> dict[int, dict[str, float | int]]:
+    def to_dict(self) -> Dict[int, Dict[str, Union[int, float]]]:
         new_dct = dict()
         for key, value in self.items():
             new_dct[key] = value.__dict__
@@ -29,7 +18,7 @@ class EventDataCollection:
 
     def __init__(self):
         # TODO make memory efficient
-        self._events: list[EventData] = []
+        self._events: List[EventData] = []
 
         self._len = 0
         # self._index = 0  # Index needed for the Iterator
