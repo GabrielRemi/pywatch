@@ -2,10 +2,10 @@ import asyncio
 from copy import deepcopy
 from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
-from typing import Any, Callable, Optional, Union, List
+from typing import Any, Callable, List, Optional, Union
 
 from .detector import Detector
-from .event_data_collection import EventDataCollection, EventData
+from .event_data_collection import EventData, EventDataCollection
 
 
 # Type of callback function of DetectorPool.run() function
@@ -87,6 +87,8 @@ class DetectorPool:
     async def async_run(self, hits: int, callback: Optional[Callback] = None, *args: Any, ) -> None:
         """Same as self.run(), but as an asynchronous function."""
         finished = False
+        counted_hits = 0
+        lock = asyncio.Lock()
 
         if callback is not None:
             c1, c2 = Pipe()
@@ -108,8 +110,7 @@ class DetectorPool:
             the threshold anymore, save the current event and begin a new one with the current hit time
             as first coincidence time."""
 
-            nonlocal finished
-            counted_hits = 0
+            nonlocal finished, counted_hits, lock
 
             while True:
                 try:
@@ -127,10 +128,13 @@ class DetectorPool:
                         if callback is not None:
                             c2.send(self._event_data)
                         self._data.add_event(deepcopy(self._event_data))
-                        counted_hits += 1
+                        async with lock:
+                            counted_hits += 1
 
+                        # print(f"hit {counted_hits} / {hits}")
                     if counted_hits == hits:
                         finished = True
+                        # print("pool finished")
                         break
 
                     self._first_coincidence_hit_time = dt[-1].comp_time
