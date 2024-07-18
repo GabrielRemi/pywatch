@@ -1,7 +1,9 @@
 import asyncio
+import sys
 import time
 from asyncio import StreamReader, StreamWriter
-from typing import Optional, List
+from typing import List, Optional
+
 import serial  # type: ignore
 from serial_asyncio import open_serial_connection  # type: ignore
 
@@ -83,7 +85,6 @@ class Detector:
         output = line.decode()
         # data = output.split()
 
-        # dct = self._make_dict_out_of_measurement(data, time.time() * 1000)
         hit_data = parse_hit_data(output, self._start_time)
 
         if self._save_data:

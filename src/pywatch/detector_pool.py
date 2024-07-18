@@ -4,6 +4,8 @@ from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
 from typing import Any, Callable, List, Optional, Union
 
+import serial
+
 from .detector import Detector
 from .event_data_collection import EventData, EventDataCollection
 
@@ -68,23 +70,35 @@ class DetectorPool:
         """Get the number of detectors that were hit during a coincidence event."""
         return len(event.keys())
 
-    def run(self, hits: int, callback: Optional[Callback] = None, *args: Any, ) -> None:
-        """Run the detectors, until the specified number of coincidence events are registered.
+    def run(self, events: int, callback: Optional[Callback] = None, *args: Any, ) -> (int, Optional[Exception]):
+        """Run the detectors, until the specified number of coincidence events are registered
         Runs the callback function after every event, if one was specified. The Callback function takes
         the event data as first argument, while *args are the other arguments
         Opens and closes the Ports before and after the measurements.
+
+        :parameters:
+        :events: number of events to register before returning the results
+        :callback: function that is run after every event
+        :return: tuple of int and an optional Exception. The int is the number of events registered before an Exception was thrown
         """
 
+        result = (events, None)
+
         async def run_():
-            if self.is_open:
+            nonlocal result
+            try:
+                if self.is_open:
+                    await self.close()
+                await self.open()
+                result = await self.async_run(events, callback, *args)
                 await self.close()
-            await self.open()
-            await self.async_run(hits, callback, *args)
-            await self.close()
+            except Exception as e:
+                result = result[0], e
 
         asyncio.run(run_())
+        return result
 
-    async def async_run(self, hits: int, callback: Optional[Callback] = None, *args: Any, ) -> None:
+    async def async_run(self, hits: int, callback: Optional[Callback] = None, *args: Any, ) -> (int, Optional[Exception]):
         """Same as self.run(), but as an asynchronous function."""
         finished = False
         counted_hits = 0
@@ -99,24 +113,32 @@ class DetectorPool:
 
                 for _ in range(hits):
                     hits_in_threshold = connection.recv()
+                    if hits_in_threshold == "ERROR":
+                        break
                     if callback is not None:
                         callback(hits_in_threshold, *args)
 
             callback_process = Process(target=callback_executor, args=(c1,))
             callback_process.start()
 
-        async def run_detector(dt: Detector, dt_index: int):
+        async def run_detector(dt: Detector, dt_index: int) -> (int, Optional[Exception]):
             """reads hits asynchronously for the specified detector. if the hit time is not inside
             the threshold anymore, save the current event and begin a new one with the current hit time
             as first coincidence time."""
 
             nonlocal finished, counted_hits, lock
+            exc = None
 
             while True:
                 try:
                     await dt.measurement()
-                except asyncio.CancelledError:
+                except (asyncio.CancelledError, Exception, serial.SerialException) as e:
+                    finished = True
+                    exc = e
+                    c2.send("ERROR")
+
                     break
+
                 if dt[-1].comp_time - self._first_coincidence_hit_time <= self.threshold:
                     if dt_index in self._event_data.keys():
                         continue
@@ -141,21 +163,26 @@ class DetectorPool:
                     self._event_data.clear()
                     self._event_data[dt_index] = dt[-1]
 
-        async def run_():
+            return counted_hits, exc
+
+        async def run_() -> (int, Optional[Exception]):
             tasks = [
                 asyncio.create_task(
                     run_detector(self._detectors[i], i), name=self._detectors[i].port
                 )
                 for i in range(len(self._detectors))
             ]
-            _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            completed, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
 
             for task in pending:
                 task.cancel()
 
-        await run_()
+            return completed.pop().result()
+
+        result = await run_()
         if callback is not None:
             callback_process.join()  # type: ignore
+        return result
 
     def __len__(self) -> int:
         return len(self._data)
