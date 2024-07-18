@@ -82,7 +82,7 @@ class DetectorPool:
         :return: tuple of int and an optional Exception. The int is the number of events registered before an Exception was thrown
         """
 
-        result = (events, None)
+        result = (0, None)
 
         async def run_():
             nonlocal result
