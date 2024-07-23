@@ -91,7 +91,7 @@ def measurement(index: int):
     tries = 5
     last_event_count = -1
     while events_run < module_.EVENT_COUNT:
-        event_count, e = pool.run(module_.EVENT_COUNT - events_run, callback)
+        event_count, e = pool.run(module_.EVENT_COUNT - events_run, outer_callback)
         if event_count == 0 and last_event_count == 0:
             tries -= 1
         print(event_count, repr(e), sep="\n", end="\n\n")

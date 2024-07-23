@@ -116,8 +116,7 @@ class DetectorPool:
                     if isinstance(hits_in_threshold, str) and hits_in_threshold.startswith("ERROR"):
                         print(hits_in_threshold)
                         break
-                    if callback is not None:
-                        callback(hits_in_threshold, *args)
+                    callback(hits_in_threshold, *args)
 
             callback_process = Process(target=callback_executor, args=(c1,))
             callback_process.start()
