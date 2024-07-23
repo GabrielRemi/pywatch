@@ -113,7 +113,8 @@ class DetectorPool:
 
                 for _ in range(hits):
                     hits_in_threshold = connection.recv()
-                    if hits_in_threshold == "ERROR":
+                    if isinstance(hits_in_threshold, str) and hits_in_threshold.startswith("ERROR"):
+                        print(hits_in_threshold)
                         break
                     if callback is not None:
                         callback(hits_in_threshold, *args)
@@ -135,7 +136,7 @@ class DetectorPool:
                 except (asyncio.CancelledError, Exception, serial.SerialException) as e:
                     finished = True
                     exc = e
-                    c2.send("ERROR")
+                    c2.send(f"ERROR: {dt_index}")
 
                     break
 
