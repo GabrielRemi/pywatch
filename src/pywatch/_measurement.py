@@ -89,6 +89,12 @@ def parse_module_from_string(script_path: str) -> types.ModuleType:
     if not isinstance(module_.THRESHOLD, int):
         raise TypeError("THRESHOLD must be an integer")
 
+    if hasattr(module_, "SAVE_CHECKPOINT"):
+        if not isinstance(module_.SAVE_CHECKPOINT, int):
+            raise TypeError("SAVE_CHECKPOINT must be an integer")
+    else:
+        module_.SAVE_CHECKPOINT = None
+
     return module_
 
 
@@ -101,14 +107,22 @@ def measurement_from_script(script_path: str):
     def save():
         nonlocal data
         with open(module_.SAVE_FILE, "w") as f:
-            json.dump(data, f, indent=4)
+            json.dump({"event_count": len(data), "data": data}, f, indent=4)
+
+        print(f"{len(data)} events saved")
 
     i = 0
+    next_checkpoint = module_.SAVE_CHECKPOINT
 
     def outer_callback(event):
-        nonlocal i
+        nonlocal i, next_checkpoint, data
+        data.append(event.to_dict())
         # data.append(event.to_dict())
         i += 1
+        if next_checkpoint is not None:
+            if i == next_checkpoint:
+                save()
+                next_checkpoint += module_.SAVE_CHECKPOINT
         # print(i)
         print(i, end=" ")
         sys.stdout.flush()
@@ -129,8 +143,9 @@ def measurement_from_script(script_path: str):
         print(event_count, repr(e), sep="\n", end="\n\n")
         events_run += event_count
 
-        for event in pool.data:
-            data.append(event.to_dict())
+        if len(data) == 0:
+            for event in pool.data:
+                data.append(event.to_dict())
 
         if tries == 1:
             print("Failed to fetch data 5 times in a row. aborting.")

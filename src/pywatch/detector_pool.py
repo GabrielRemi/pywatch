@@ -90,8 +90,15 @@ class DetectorPool:
             callback(data, *args)
 
         data = c1.recv()
+        print("data", data)
         self._data = data
         result = c1.recv()
+
+        # this is bad
+        # TODO find bug when sending premature results
+        if result is None:
+            c1.recv()
+            result = c1.recv()
 
         p.join()
 
@@ -204,9 +211,16 @@ class DetectorPool:
             for task in pending:
                 task.cancel()
 
+            if connection is not None:
+                connection.send(None)
+                connection.send(self.data)
+
             return completed.pop().result()
 
         result = await run_()
+        if connection is not None:
+            connection.send(result)
+
         return result
 
     def __len__(self) -> int:
